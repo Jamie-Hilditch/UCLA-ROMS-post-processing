@@ -1,0 +1,27 @@
+[project]
+name = "ucla-roms-post-processing"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Jamie", email = "hilditch@stanford.edu" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "xarray[io,parallel]",
+    "xroms",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.5",
+]
+sherlock = [
+    "netcdf4!=1.7.3",
+    "pyarrow==19",
+]

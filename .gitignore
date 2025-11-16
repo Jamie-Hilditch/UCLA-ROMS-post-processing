@@ -1,0 +1,79 @@
+# -----------------------------
+# python
+# -----------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.dll
+
+# Byte-compiled / cached
+*.cache/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# -----------------------------
+# UV (package manager)
+# -----------------------------
+.uv/
+.venv/        # UV’s default isolated env
+uv.lock       # UV lock file (optional: track it if desired)
+site-packages/
+
+# -----------------------------
+# Build artifacts
+# -----------------------------
+build/
+dist/
+sdist/
+wheels/
+*.egg-info/
+.eggs/
+*.egg
+
+# -----------------------------
+# Packaging
+# -----------------------------
+MANIFEST
+pip-wheel-metadata/
+
+# -----------------------------
+# Tooling / Development
+# -----------------------------
+# Editors
+.vscode/
+.idea/
+
+# Ruff / Black / Linting
+.ruff_cache/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+.cache/
+nosetests.xml
+coverage.xml
+
+# Logs
+*.log
+
+# -----------------------------
+# Testing
+# -----------------------------
+.pytest_cache/
+.tox/
+hypothesis/
+
+# -----------------------------
+# Misc
+# -----------------------------
+.DS_Store
+.env
+.env.*
+*.env
+*.sqlite3
+
+
