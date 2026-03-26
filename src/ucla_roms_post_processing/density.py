@@ -185,7 +185,15 @@ def compute_buoyancy(
 def add_density(ds: xr.Dataset) -> xr.Dataset:
     """Add density variable to the dataset."""
     z = compute_z_rho(ds)
-    ds["density"] = compute_density(ds["temp"], ds["salt"], z=z)
+    ds["density"] = xr.apply_ufunc(
+        compute_density,
+        ds["temp"], 
+        ds["salt"], 
+        z,
+        input_core_dims=[[], [], []],
+        output_core_dims=[[]],
+        dask="allowed"
+    )
     return ds
 
 def add_potential_density(ds: xr.Dataset, zref: float = 0.0, rho0: float | None = None) -> xr.Dataset:
@@ -195,7 +203,14 @@ def add_potential_density(ds: xr.Dataset, zref: float = 0.0, rho0: float | None 
     """
     if rho0 is None:
         rho0 = ds.attrs.get("rho0", DEFAULT_RHO0)
-    ds["potential_density"] = compute_potential_density(ds["temp"], ds["salt"], zref=zref, rho0=rho0)
+    ds["potential_density"] = xr.apply_ufunc(
+        compute_potential_density,
+        ds["temp"], 
+        ds["salt"], 
+        input_core_dims=[[], []],
+        output_core_dims=[[]],
+        dask="allowed",
+        kwargs={"zref": zref, "rho0": rho0})
     return ds
 
 def add_buoyancy(ds: xr.Dataset, zref: float = 0.0, rho0: float | None = None) -> xr.Dataset:
@@ -205,5 +220,13 @@ def add_buoyancy(ds: xr.Dataset, zref: float = 0.0, rho0: float | None = None) -
     """
     if rho0 is None:
         rho0 = ds.attrs.get("rho0", DEFAULT_RHO0)
-    ds["buoyancy"] = compute_buoyancy(ds["temp"], ds["salt"], zref=zref, rho0=rho0)
+    ds["buoyancy"] = xr.apply_ufunc(
+        compute_buoyancy,
+        ds["temp"],
+        ds["salt"],
+        input_core_dims=[[], []],
+        output_core_dims=[[]],
+        dask="allowed",
+        kwargs={"zref": zref, "rho0": rho0}
+    )
     return ds
