@@ -59,6 +59,13 @@ def _compute_dz(ds: xr.Dataset, xgrid: xgcm.Grid) -> xr.DataArray:
     z = compute_z_w(ds)
     return xgrid.diff(z, "Z")
 
+def _compute_vertical_vorticity(ds: xr.Dataset, xgrid: xgcm.Grid, tracer: str = "b") -> xr.DataArray:
+    """Compute the vertical component of absolute vorticity."""
+    dv_dxi = _compute_dv_dxi(ds, xgrid)
+    du_deta = _compute_du_deta(ds, xgrid)
+    return dv_dxi * ds["pm"] - du_deta * ds["pn"] + ds["f"]
+
+
 
 def compute_potential_vorticity(
     ds: xr.Dataset,
@@ -70,19 +77,29 @@ def compute_potential_vorticity(
     """Compute the potential vorticity."""
     if xgrid is None:
         xgrid = create_xgrid(ds)
-    dv_dxi = _compute_dv_dxi(ds, xgrid)
-    du_deta = _compute_du_deta(ds, xgrid)
+    # first the vertical component of absolute vorticity times the vertical gradient of the tracer
+    pv = _compute_vertical_vorticity(ds, xgrid, tracer)
+    dtracer_dpi = _compute_dtracer_dpi(ds, xgrid, tracer)
+    pv *= dtracer_dpi
+    del dtracer_dpi
+
+    # then the vertical shear of the zonal velocity times the meridional gradient of the tracer
     du_dpi = _compute_du_dpi(ds, xgrid)
+    dtracer_deta = _compute_dtracer_deta(ds, xgrid, tracer)
+    dtracer_deta *= ds["pn"] * du_dpi
+    pv += dtracer_deta
+    del dtracer_deta, du_dpi
+
+    # finally the vertical shear of the meridional velocity times the zonal gradient of the tracer
     dv_dpi = _compute_dv_dpi(ds, xgrid)
     dtracer_dxi = _compute_dtracer_dxi(ds, xgrid, tracer)
-    dtracer_deta = _compute_dtracer_deta(ds, xgrid, tracer)
-    dtracer_dpi = _compute_dtracer_dpi(ds, xgrid, tracer)
+    dtracer_dxi *= ds["pm"] * dv_dpi
+    pv -= dtracer_dxi
+    del dtracer_dxi, dv_dpi
+    
+    # divide by the vertical grid spacing to get potential vorticity
     dz = _compute_dz(ds, xgrid)
-    return scaling * (
-        (dv_dxi * ds["pm"] - du_deta * ds["pn"] + ds["f"]) * dtracer_dpi
-        + du_dpi * dtracer_deta * ds["pn"]
-        - dv_dpi * dtracer_dxi * ds["pm"]
-    ) / dz
+    return scaling * pv / dz
 
 
 def add_potential_vorticity(
