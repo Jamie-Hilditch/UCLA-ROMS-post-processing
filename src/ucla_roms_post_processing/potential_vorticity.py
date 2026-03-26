@@ -59,46 +59,42 @@ def _compute_dz(ds: xr.Dataset, xgrid: xgcm.Grid) -> xr.DataArray:
     z = compute_z_w(ds)
     return xgrid.diff(z, "Z")
 
-def _compute_vertical_vorticity(ds: xr.Dataset, xgrid: xgcm.Grid, tracer: str = "b") -> xr.DataArray:
-    """Compute the vertical component of absolute vorticity."""
-    dv_dxi = _compute_dv_dxi(ds, xgrid)
-    du_deta = _compute_du_deta(ds, xgrid)
-    return dv_dxi * ds["pm"] - du_deta * ds["pn"] + ds["f"]
-
-
 
 def compute_potential_vorticity(
     ds: xr.Dataset,
     *,
     tracer: str = "b",
     xgrid: xgcm.Grid | None = None,
+    dz: xr.DataArray | None = None,
     scaling: float = 1.0,
 ) -> xr.DataArray:
     """Compute the potential vorticity."""
     if xgrid is None:
         xgrid = create_xgrid(ds)
-    # first the vertical component of absolute vorticity times the vertical gradient of the tracer
-    pv = _compute_vertical_vorticity(ds, xgrid, tracer)
-    dtracer_dpi = _compute_dtracer_dpi(ds, xgrid, tracer)
-    pv *= dtracer_dpi
-    del dtracer_dpi
+    if dz is None:
+        dz = _compute_dz(ds, xgrid)
 
-    # then the vertical shear of the zonal velocity times the meridional gradient of the tracer
+    # Start by constructing the vertical vorticity contribution 
+    dtracer_dpi = _compute_dtracer_dpi(ds, xgrid, tracer)
+    pv = ds["f"] * dtracer_dpi
+
+    dv_dxi = _compute_dv_dxi(ds, xgrid)
+    pv += ds["pm"] * dv_dxi * dtracer_dpi
+
+    du_deta = _compute_du_deta(ds, xgrid)
+    pv -= ds["pn"] * du_deta * dtracer_dpi
+
+    # then add the baroclinic term from zonal shear and meridional tracer gradient
     du_dpi = _compute_du_dpi(ds, xgrid)
     dtracer_deta = _compute_dtracer_deta(ds, xgrid, tracer)
-    dtracer_deta *= ds["pn"] * du_dpi
-    pv += dtracer_deta
-    del dtracer_deta, du_dpi
+    pv += ds["pn"] * du_dpi * dtracer_deta
 
-    # finally the vertical shear of the meridional velocity times the zonal gradient of the tracer
+    # finally subtract the baroclinic term from meridional shear and zonal tracer gradient
     dv_dpi = _compute_dv_dpi(ds, xgrid)
     dtracer_dxi = _compute_dtracer_dxi(ds, xgrid, tracer)
-    dtracer_dxi *= ds["pm"] * dv_dpi
-    pv -= dtracer_dxi
-    del dtracer_dxi, dv_dpi
-    
-    # divide by the vertical grid spacing to get potential vorticity
-    dz = _compute_dz(ds, xgrid)
+    pv -= ds["pm"] * dv_dpi * dtracer_dxi
+
+    # divide by vertical grid spacing to get potential vorticity
     return scaling * pv / dz
 
 
@@ -106,13 +102,15 @@ def add_potential_vorticity(
     ds: xr.Dataset,
     tracer: str = "b",
     xgrid: xgcm.Grid | None = None,
+    dz: xr.DataArray | None = None,
     scaling: float = 1.0,
 ) -> xr.Dataset:
     """Add potential vorticity variable to the dataset."""
-    ds["potential_vorticity"] = xr.map_blocks(
-        compute_potential_vorticity,
-        ds, 
-        kwargs={"tracer": tracer, "xgrid": xgrid, "scaling": scaling},
-        template=ds.temp.isel(time=0).copy()
+    ds["potential_vorticity"] = compute_potential_vorticity(
+        ds,
+        tracer=tracer,
+        xgrid=xgrid,
+        dz=dz,
+        scaling=scaling,
     )
     return ds
