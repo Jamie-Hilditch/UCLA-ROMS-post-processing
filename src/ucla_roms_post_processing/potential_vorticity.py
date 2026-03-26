@@ -92,12 +92,9 @@ def add_potential_vorticity(
     scaling: float = 1.0,
 ) -> xr.Dataset:
     """Add potential vorticity variable to the dataset."""
-    ds["potential_vorticity"] = xr.apply_ufunc(
+    ds["potential_vorticity"] = xr.map_blocks(
         compute_potential_vorticity,
         ds, 
-        input_core_dims=[["s_rho", "s_w", "eta_v", "eta_rho", "xi_u", "xi_rho",]],
-        output_core_dims=[["s_rho", "eta_rho", "xi_rho"]],
-        dask="allowed",
-        kwargs={"tracer": tracer, "xgrid": xgrid, "scaling": scaling}
+        kwargs={"tracer": tracer, "xgrid": xgrid, "scaling": scaling},
     )
     return ds
