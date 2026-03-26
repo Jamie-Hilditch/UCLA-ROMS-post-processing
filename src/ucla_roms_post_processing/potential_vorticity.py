@@ -96,5 +96,6 @@ def add_potential_vorticity(
         compute_potential_vorticity,
         ds, 
         kwargs={"tracer": tracer, "xgrid": xgrid, "scaling": scaling},
+        template=ds.temp.copy()
     )
     return ds
