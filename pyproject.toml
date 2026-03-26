@@ -10,7 +10,6 @@ requires-python = ">=3.12"
 dependencies = [
     "numpy",
     "xarray[io,parallel]",
-    "xroms",
 ]
 
 [build-system]
@@ -25,3 +24,6 @@ sherlock = [
     "netcdf4!=1.7.3",
     "pyarrow==19",
 ]
+
+[tools.ruff]
+extend-select = ["I"]
