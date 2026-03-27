@@ -11,21 +11,27 @@ from .grid import compute_z_rho
 
 DEFAULT_RHO0 = 1025.0
 
+
 def compute_density(
     temp: npt.NDArray[float] | xr.DataArray,
     salt: npt.NDArray[float] | xr.DataArray,
     z: npt.NDArray[float] | xr.DataArray | float = 0.0,
 ) -> xr.DataArray:
-    """Calculate the density [kg/m^3] as calculated in ROMS.
+    """Calculate in-situ density [kg/m^3] as in ROMS.
 
     Parameters
     ----------
     temp: DataArray, ndarray
         Temperature [Celsius]
     salt: DataArray, ndarray
-        Salinity
+        Salinity [PSU]
     z: DataArray, ndarray, int, float, optional
         Vertical coordinate array or reference value [m] (Default: 0.0).
+
+    Returns
+    -------
+    DataArray, ndarray
+        In-situ density [kg/m^3].
 
     Notes
     -----
@@ -128,51 +134,64 @@ def compute_density(
     bulk = K0 - K1 * z + K2 * z**2
     return (den1 * bulk) / (bulk + 0.1 * z)
 
+
 def compute_potential_density(
     temp: npt.NDArray[float] | xr.DataArray,
     salt: npt.NDArray[float] | xr.DataArray,
     *,
     zref: float = 0.0,
-    rho0: float = DEFAULT_RHO0
 ) -> xr.DataArray:
-    """Calculate the potential density [kg/m^3] as calculated in ROMS.
+    """Calculate the potential density anomaly [kg/m^3].
+
+    Compute potential density at reference level ``zref`` and subtract 1000 kg/m^3
+    to get the potential density anomaly.
 
     Parameters
     ----------
     temp: DataArray, ndarray
         Temperature [Celsius]
     salt: DataArray, ndarray
-        Salinity
+        Salinity [PSU]
     zref: float, optional
         Vertical coordinate reference value [m] (Default: 0.0).
-    rho0: float, optional
-        Reference density [kg/m^3] (Default: 1025.0).
+
+    Returns
+    -------
+    DataArray, ndarray
+        Potential density anomaly [kg/m^3].
+
     Notes
     -----
     Equation of state based on ROMS Nonlinear/rho_eos.F
 
     """
-    return compute_density(temp, salt, zref) - rho0
+    return compute_density(temp, salt, zref) - 1000.0
+
 
 def compute_buoyancy(
     temp: npt.NDArray[float] | xr.DataArray,
     salt: npt.NDArray[float] | xr.DataArray,
     *,
     zref: float = 0.0,
-    rho0: float = DEFAULT_RHO0
+    rho0: float = DEFAULT_RHO0,
 ) -> xr.DataArray:
-    """Calculate the buoyancy [m/s^2] as calculated in ROMS.
+    """Calculate buoyancy [m/s^2] from potential density anomaly.
 
     Parameters
     ----------
     temp: DataArray, ndarray
         Temperature [Celsius]
     salt: DataArray, ndarray
-        Salinity
+        Salinity [PSU]
     zref: float, optional
         Vertical coordinate reference value [m] (Default: 0.0).
     rho0: float, optional
         Reference density [kg/m^3] (Default: 1025.0).
+
+    Returns
+    -------
+    DataArray, ndarray
+        Buoyancy [m/s^2].
 
     Notes
     -----
@@ -180,43 +199,70 @@ def compute_buoyancy(
 
     """
     g = 9.81
-    return -compute_potential_density(temp, salt, zref=zref, rho0=rho0) * g / rho0
+    return -compute_potential_density(temp, salt, zref=zref) * g / rho0
 
-def add_density(ds: xr.Dataset) -> xr.Dataset:
-    """Add density variable to the dataset."""
+
+def add_insitu_density(ds: xr.Dataset) -> xr.Dataset:
+    """Add insitudensity variable to the dataset."""
     z = compute_z_rho(ds)
-    ds["density"] = xr.apply_ufunc(
+    ds["insitu_density"] = xr.apply_ufunc(
         compute_density,
-        ds["temp"], 
-        ds["salt"], 
+        ds["temp"],
+        ds["salt"],
         z,
         input_core_dims=[[], [], []],
         output_core_dims=[[]],
-        dask="allowed"
+        dask="allowed",
+    )
+    ds["insitu_density"].attrs.update(
+        {
+            "standard_name": "sea_water_density",
+            "long_name": "In-situ seawater density",
+            "units": "kg m-3",
+        }
     )
     return ds
 
-def add_potential_density(ds: xr.Dataset, zref: float = 0.0, rho0: float | None = None) -> xr.Dataset:
+
+def add_potential_density(
+    ds: xr.Dataset, zref: float = 0.0
+) -> xr.Dataset:
     """Add potential density variable to the dataset.
-    
-        If rho0 is not provided, it will be taken from the dataset attributes or default to 1025.0.
+
+    Parameters
+    ----------
+    zref: float, optional
+        Vertical coordinate reference value [m] (Default: 0.0).
     """
-    if rho0 is None:
-        rho0 = ds.attrs.get("rho0", DEFAULT_RHO0)
     ds["potential_density"] = xr.apply_ufunc(
         compute_potential_density,
-        ds["temp"], 
-        ds["salt"], 
+        ds["temp"],
+        ds["salt"],
         input_core_dims=[[], []],
         output_core_dims=[[]],
         dask="allowed",
-        kwargs={"zref": zref, "rho0": rho0})
+        kwargs={"zref": zref},
+    )
+    attrs = {
+        "long_name": "Potential density anomaly",
+        "units": "kg m-3",
+    }
+    if zref == 0.0:
+        attrs["standard_name"] = "sea_water_sigma_theta"
+    else:
+        attrs["comment"] = (
+            f"Potential density anomaly referenced to zref={zref} m"
+        )
+    ds["potential_density"].attrs.update(attrs)
     return ds
 
-def add_buoyancy(ds: xr.Dataset, zref: float = 0.0, rho0: float | None = None) -> xr.Dataset:
+
+def add_buoyancy(
+    ds: xr.Dataset, zref: float = 0.0, rho0: float | None = None
+) -> xr.Dataset:
     """Add buoyancy variable to the dataset.
-    
-        If rho0 is not provided, it will be taken from the dataset attributes or default to 1025.0.
+
+    If rho0 is not provided, it will be taken from the dataset attributes or default to 1025.0.
     """
     if rho0 is None:
         rho0 = ds.attrs.get("rho0", DEFAULT_RHO0)
@@ -227,6 +273,13 @@ def add_buoyancy(ds: xr.Dataset, zref: float = 0.0, rho0: float | None = None) -
         input_core_dims=[[], []],
         output_core_dims=[[]],
         dask="allowed",
-        kwargs={"zref": zref, "rho0": rho0}
+        kwargs={"zref": zref, "rho0": rho0},
+    )
+    ds["buoyancy"].attrs.update(
+        {
+            "standard_name": "specific_buoyancy",
+            "long_name": "Seawater buoyancy",
+            "units": "m s-2",
+        }
     )
     return ds
