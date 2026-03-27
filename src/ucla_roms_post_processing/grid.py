@@ -53,5 +53,6 @@ def create_xgrid(ds: xr.Dataset) -> xgcm.Grid:
             "Y": {"center": "eta_rho", "inner": "eta_v"},
             "Z": {"center": "s_rho", "outer": "s_w"}
         },
-        autoparse_metadata=False
+        autoparse_metadata=False,
+        periodic=False
     )
