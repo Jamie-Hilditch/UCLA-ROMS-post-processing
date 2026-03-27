@@ -2,7 +2,7 @@
 
 from .density import (
     add_buoyancy,
-    add_density,
+    add_insitu_density,
     add_potential_density,
     compute_buoyancy,
     compute_density,
@@ -21,7 +21,7 @@ from .time import add_time_coordinate, make_ocean_time_dim
 
 __all__ = [
     "add_buoyancy",
-    "add_density",
+    "add_insitu_density",
     "add_potential_density",
     "compute_buoyancy",
     "compute_density",
