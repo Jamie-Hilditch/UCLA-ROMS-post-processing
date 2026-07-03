@@ -10,9 +10,9 @@ def make_ocean_time_dim(ds: xr.Dataset) -> xr.Dataset:
 
 def add_time_coordinate(ds: xr.Dataset, origin: np.datetime64) -> xr.Dataset:
     """Add time coordinate to the dataset."""
-    nanoseconds = ds["ocean_time"] * 1e9
-    nanoseconds = nanoseconds.drop_attrs()
+    nanoseconds = ds["ocean_time"].values * 1e9
     time_since_origin = nanoseconds.astype("int64").astype("timedelta64[ns]")
     time = origin + time_since_origin
+    time = xr.DataArray(data=time, dims="ocean_time")
     ds = ds.assign_coords(time=time)
     return ds
